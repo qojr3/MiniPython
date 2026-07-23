@@ -32,6 +32,17 @@ cd MiniPython
 python MiniPython.py
 ```
 
+## Updates
+
+### 1. Pull the repository
+
+Open Git Bash and run:
+
+```bash
+cd MiniPython
+git pull
+```
+
 ## Features
 
 - Python code execution
