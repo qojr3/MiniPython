@@ -4,18 +4,16 @@ import re
 import multiprocessing
 import queue
 
-from prompt_toolkit.application import Application
-from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.layout import Layout
-from prompt_toolkit.layout.containers import Window
-from prompt_toolkit.layout.controls import BufferControl
-from prompt_toolkit.layout.margins import NumberedMargin
+from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.key_binding import KeyBindings
 
 
+# =========================
+# SETTINGS
+# =========================
+
 sandbox_enabled = False
-variables = {}
 
 
 COMMANDS = [
@@ -33,30 +31,82 @@ COMMANDS = [
 
 class PythonCompleter(Completer):
 
-    def get_completions(
-        self,
-        document,
-        complete_event
-    ):
-
-        current = document.get_word_before_cursor()
-
-        words = set()
-
-        words.update(keyword.kwlist)
-        words.update(dir(builtins))
-        words.update(variables.keys())
-        words.update(COMMANDS)
+    def __init__(self, namespace):
+        self.namespace = namespace
 
 
-        for word in words:
+    def get_completions(self, document, complete_event):
 
-            if word.startswith(current):
+        text = document.text_before_cursor
 
-                yield Completion(
-                    word,
-                    start_position=-len(current)
+
+        match = re.search(
+            r"(\w+)\.(\w*)$",
+            text
+        )
+
+
+        if match:
+
+            obj_name = match.group(1)
+            partial = match.group(2)
+
+            try:
+
+                obj = eval(
+                    obj_name,
+                    self.namespace
                 )
+
+                for item in dir(obj):
+
+                    if item.startswith(partial):
+
+                        yield Completion(
+                            item,
+                            start_position=-len(partial)
+                        )
+
+            except:
+
+                pass
+
+
+        else:
+
+            words = set()
+
+            words.update(
+                keyword.kwlist
+            )
+
+            words.update(
+                dir(builtins)
+            )
+
+            words.update(
+                self.namespace.keys()
+            )
+
+            words.update(
+                COMMANDS
+            )
+
+
+            current = (
+                document
+                .get_word_before_cursor()
+            )
+
+
+            for word in words:
+
+                if word.startswith(current):
+
+                    yield Completion(
+                        word,
+                        start_position=-len(current)
+                    )
 
 
 
@@ -64,9 +114,10 @@ class PythonCompleter(Completer):
 # SANDBOX
 # =========================
 
-def sandbox_exec(code, output):
+def sandbox_execute(code, output):
 
-    safe = {
+    safe_builtins = {
+
         "print": print,
         "len": len,
         "range": range,
@@ -74,7 +125,15 @@ def sandbox_exec(code, output):
         "int": int,
         "float": float,
         "list": list,
-        "dict": dict
+        "dict": dict,
+        "bool": bool,
+        "enumerate": enumerate
+
+    }
+
+
+    env = {
+        "__builtins__": safe_builtins
     }
 
 
@@ -82,27 +141,35 @@ def sandbox_exec(code, output):
 
         exec(
             code,
-            {
-                "__builtins__": safe
-            }
+            env
         )
 
 
     except Exception as e:
 
-        output.put(str(e))
+        output.put(
+            "Error: " + str(e)
+        )
 
 
 
-def run_code(code):
+# =========================
+# EXECUTOR
+# =========================
+
+def execute(code):
 
     if sandbox_enabled:
 
-        output = multiprocessing.Queue()
+        result = multiprocessing.Queue()
+
 
         process = multiprocessing.Process(
-            target=sandbox_exec,
-            args=(code, output)
+            target=sandbox_execute,
+            args=(
+                code,
+                result
+            )
         )
 
 
@@ -115,16 +182,24 @@ def run_code(code):
 
             process.terminate()
 
-            print("Timeout")
+            print(
+                "Execution stopped: timeout"
+            )
 
 
         else:
 
             try:
-                print(output.get_nowait())
+
+                print(
+                    result.get_nowait()
+                )
+
 
             except queue.Empty:
+
                 pass
+
 
 
     else:
@@ -133,13 +208,15 @@ def run_code(code):
 
             try:
 
-                value = eval(
+                result = eval(
                     code,
                     variables
                 )
 
-                if value is not None:
-                    print(value)
+
+                if result is not None:
+
+                    print(result)
 
 
             except SyntaxError:
@@ -160,117 +237,165 @@ def run_code(code):
 
 
 # =========================
-# EDITOR
-# =========================
-
-buffer = Buffer(
-    multiline=True,
-    completer=PythonCompleter()
-)
-
-
-control = BufferControl(
-    buffer=buffer
-)
-
-
-window = Window(
-    content=control,
-    left_margins=[
-        NumberedMargin()
-    ]
-)
-
-
-
-# =========================
-# KEYS
+# KEYBINDS
 # =========================
 
 kb = KeyBindings()
 
 
-@kb.add("escape", "enter")
-def execute(event):
+@kb.add(
+    "escape",
+    "enter"
+)
+def submit(event):
 
-    global sandbox_enabled
-
-
-    code = buffer.text
-
-
-    if code.strip() == "exit":
-
-        event.app.exit()
-        return
+    event.current_buffer.validate_and_handle()
 
 
-    if code.strip() == "toggle_sandbox":
+
+# =========================
+# MINI PYTHON
+# =========================
+
+variables = {}
+
+
+session = PromptSession(
+
+    multiline=True,
+
+    key_bindings=kb,
+
+    completer=PythonCompleter(
+        variables
+    )
+
+)
+
+
+
+print("======================")
+print("     MiniPython")
+print("======================")
+
+print()
+
+print(
+    "Sandbox:",
+    "ON" if sandbox_enabled else "OFF"
+)
+
+print()
+
+print("Commands:")
+print("exit              - quit")
+print("help              - commands")
+print("vars              - show variables")
+print("clear             - clear variables")
+print("toggle_sandbox    - switch sandbox mode")
+
+print()
+
+print("Run code:")
+print("ESC + ENTER")
+
+print()
+
+
+
+while True:
+
+    try:
+
+        code = session.prompt(
+            ">>> "
+        )
+
+
+    except KeyboardInterrupt:
+
+        print("^C")
+
+        continue
+
+
+    except EOFError:
+
+        break
+
+
+
+    command = code.strip()
+
+
+
+    if command == "exit":
+
+        break
+
+
+
+    if command == "help":
+
+        print(
+            ", ".join(COMMANDS)
+        )
+
+        continue
+
+
+
+    if command == "vars":
+
+        for key, value in variables.items():
+
+            if not key.startswith("__"):
+
+                print(
+                    key,
+                    "=",
+                    value
+                )
+
+        continue
+
+
+
+    if command == "clear":
+
+        variables.clear()
+
+        print(
+            "Variables cleared"
+        )
+
+        continue
+
+
+
+    if command == "toggle_sandbox":
 
         sandbox_enabled = not sandbox_enabled
 
         print(
             "Sandbox:",
-            sandbox_enabled
+            "ON" if sandbox_enabled else "OFF"
         )
 
-        buffer.text = ""
-
-        return
-
-
-    if code.strip() == "vars":
-
-        print(variables)
-
-        buffer.text = ""
-
-        return
-
-
-    if code.strip() == "clear":
-
-        buffer.text = ""
-
-        return
-
-
-    if code.strip() == "help":
-
-        print(COMMANDS)
-
-        buffer.text = ""
-
-        return
-
-
-    run_code(code)
-
-    buffer.text = ""
+        continue
 
 
 
-@kb.add("c-c")
-def quit_app(event):
+    if not command:
 
-    event.app.exit()
-
+        continue
 
 
-# =========================
-# START
-# =========================
 
-app = Application(
-
-    layout=Layout(
-        window
-    ),
-
-    key_bindings=kb,
-
-    full_screen=True
-)
+    execute(
+        code
+    )
 
 
-app.run()
+
+print("Goodbye!")
