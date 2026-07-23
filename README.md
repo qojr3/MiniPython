@@ -1,15 +1,49 @@
-# WARNING
+# MiniPython
 
-**Code executed through this program runs with the same permissions as the user running it. 
-Only run code that you trust.**
+A small Python execution environment with autocomplete and optional sandboxing.
 
-*I am not responsible for data loss, system damage, or any other consequences caused by code executed through this program.*
+## ⚠️ Warning
 
+**MiniPython executes Python code. Code may run with the same permissions as the user who launches the program. Only execute code that you understand and trust.**
+
+Running untrusted code can result in data loss, system changes, or other unintended consequences.
+
+MiniPython is provided as-is. Use it responsibly.
 
 ## Setup
 
-Run "git clone https://github.com/qojr3/MiniPython" in your GIT Terminal.
+### 1. Clone the repository
 
-after cloning. cd into MiniPython in your GIT Terminal.
+Open Git Bash and run:
 
-after cd'ing to MiniPython. simply type in MiniPython.py then press enter.
+```bash
+git clone https://github.com/qojr3/MiniPython
+```
+
+### 2. Enter the project folder
+
+```bash
+cd MiniPython
+```
+
+### 3. Run MiniPython
+
+```bash
+python MiniPython.py
+```
+
+## Features
+
+- Python code execution
+- Autocomplete
+- Multiline input
+- Optional sandbox mode
+- Terminal-based interface
+
+## Commands
+
+- `help` - Show available commands
+- `toggle_sandbox` - Enable/disable sandbox mode
+- `vars` - Show variables
+- `clear` - Clear the editor
+- `exit` - Close MiniPython
